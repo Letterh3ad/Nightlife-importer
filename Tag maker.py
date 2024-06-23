@@ -57,36 +57,32 @@ def tag_array_gen(csv_path,output_filename):
     tag_generator(unitnames,category_list,output_filename)
     
 def tag_generator(arr, csv_file, output_filename):
-    arr=list(map(str.lower,arr))
+    arr = list(map(str.lower, arr))
     results = {
-        'tag1': [],
-        'tag2': [],
-        'tag3': [],
-        'tag4': []
+        'tags': []
     }
     
     for item in arr:
-        tags = [None, None, None, None]
+        tags = []
+
         # Extract weight
         weight_match = re.search(r'(\d+(?:kg|g))', item)
         if weight_match:
-            tags[3] = weight_match.group(1)
+            tags.append(weight_match.group(1))
             # Remove weight from the string to isolate the color(s)
             item = re.sub(r'\d+(?:kg|g)', '', item).strip()
         
         # Split remaining string by " - "
         colors = [color.strip() for color in item.split(' - ') if color.strip()]
         
-        # Assign colors to tags
-        for i, color in enumerate(colors):
-            if i < 3:
-                tags[i] = color
+        # Append colors to tags
+        tags.extend(colors)
         
-        # Append the tags to the results dictionary
-        results['tag1'].append(tags[0])
-        results['tag2'].append(tags[1])
-        results['tag3'].append(tags[2])
-        results['tag4'].append(tags[3])
+        # Join tags into a single string separated by commas
+        tags_str = ', '.join(tags)
+        
+        # Append the concatenated tags to the results dictionary
+        results['tags'].append(tags_str)
     
     # Print the results for debugging
     print(results)
@@ -95,11 +91,9 @@ def tag_generator(arr, csv_file, output_filename):
     update_tags(results, csv_file, output_filename)
             
 
-def update_tags(tag_dict,csv_file,output_filename):   
-    for i in range(len(tag_dict)):
-        tag_id = str("tag"+str(i+1))
-        csv_file[tag_id] = tag_dict[tag_id]
-    pandas_to_csv(csv_file,outputfolder,output_filename)
+def update_tags(tag_dict, csv_file, output_filename):   
+    csv_file['tags'] = tag_dict['tags']
+    pandas_to_csv(csv_file, outputfolder, output_filename)
 
 def pathcheck(path):
     if not os.path.exists(path):
