@@ -3,8 +3,8 @@ import os
 import re
 import requests
 
-print(os.getcwd())
-basefile = f"C:/Users/lette/Desktop/Nightlife/Nightlife-importer/"
+
+basefile = (os.getcwd()+"\\").replace("\\","/")
 outputfolder = os.path.join(os.getcwd(), basefile+"categories_updated/")
 import_folder = basefile+"categories/"
 
