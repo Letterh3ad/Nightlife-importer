@@ -53,6 +53,8 @@ def download_csv(url, output_folder, output_filename):
 
 def tag_array_gen(csv_path,output_filename):
     category_list = pd.read_csv(csv_path, sep=',')
+    category_list=row_normalizer(category_list,"Family")
+    print(category_list)
     unitnames = category_list["Unit Name"].values
     tag_generator(unitnames,category_list,output_filename)
     
@@ -85,12 +87,14 @@ def tag_generator(arr, csv_file, output_filename):
         results['tags'].append(tags_str)
     
     # Print the results for debugging
-    print(results)
-    
+    print(results)    
     # Update tags in the CSV file
     update_tags(results, csv_file, output_filename)
             
-
+def row_normalizer(dataframe,col_name):
+    dataframe[col_name] = dataframe[col_name].str.lower()
+    return dataframe
+        
 def update_tags(tag_dict, csv_file, output_filename):   
     csv_file['tags'] = tag_dict['tags']
     pandas_to_csv(csv_file, outputfolder, output_filename)
