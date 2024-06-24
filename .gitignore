@@ -1,6 +1,5 @@
 dist/
 build/
-categories_list.txt
 categories/category_20240623(1).csv
 *.csv
 Tag maker.spec
