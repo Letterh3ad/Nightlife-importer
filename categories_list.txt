@@ -1,3 +1,5 @@
 tea_1kg=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=34129
 tea_50g=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=34132
 small_african_tumble=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=36868
+medium_african_tumble=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=36848
+large_african_tumble=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=36848

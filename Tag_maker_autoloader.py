@@ -12,7 +12,6 @@ import_folder = basefile+"categories/"
 
 
 
-
 #category_list = pd.read_csv(category_file, sep=',')
 #unitnames = category_list["Unit Name"].values
 
@@ -49,14 +48,26 @@ def download_csv(url, output_folder, output_filename):
     except Exception as err:
         print(f"An error occurred: {err}")
     csv_path = output_folder+output_filename
-    tag_array_gen(csv_path,output_filename)
+    array_mod_core(csv_path,output_filename)
 
-def tag_array_gen(csv_path,output_filename):
+def array_mod_core(csv_path,output_filename):
+
+
+    #Add dataframe column nammes here (Note: they will be formatted to lower case
+    # as well as spaces replaced with "_"
+    prod_name = str("unit_name")
+    prod_price = str("unit_price")
+    prod_net_weight = str("unit_net_weight")
+    prod_stock_level = str("stock")
+    ##########
+    
     category_list = pd.read_csv(csv_path, sep=',')
     category_list=row_normalizer(category_list,"Family")
+    replace_spaces_in_column_names(category_list)
     print(category_list)
-    unitnames = category_list["Unit Name"].values
-    stock_normalizer(category_list,"Stock")
+    unitnames = category_list[prod_name].values
+    stock_normalizer(category_list,prod_stock_level)
+    #price_set(category_list,prod_price,prod_net_weight)
     tag_generator(unitnames,category_list,output_filename)
     
 def tag_generator(arr, csv_file, output_filename):
@@ -96,8 +107,41 @@ def row_normalizer(dataframe,col_name):
     return dataframe
 
 def stock_normalizer(df,col_name):
-    df[col_name] = df[col_name].apply(lambda x: 'available' if x != 'OutofStock' else x)
-            
+    df[col_name] = df[col_name].apply(lambda x: 'outofstock' if x == 'OutofStock' else 'instock')
+
+
+def replace_spaces_in_column_names(dataframe):
+    # Create a dictionary to map old column names to new column names
+    new_column_names = {col: col.lower().replace(' ', '_') for col in dataframe.columns}    
+
+    # Rename the columns
+    dataframe.rename(columns=new_column_names, inplace=True)
+    
+    return dataframe
+
+def price_set(dataframe, col_name, weight_col_name):
+    def calculate_final_price(row):
+        base_price = row[col_name]
+        weight = row[weight_col_name]
+        
+        # Determine the delivery fee based on weight
+        if weight < 0.1:
+            delivery_fee = 2.79
+        elif weight < 3:
+            delivery_fee = 2.99
+        else:
+            delivery_fee = 5.99
+        
+        # Calculate final price including delivery fee and 20% markup
+        final_price = (base_price + delivery_fee) * 1.20
+        return round(final_price, 2)
+    
+    # Apply the function to each row in the DataFrame and create a new column 'calculated_price'
+    dataframe['calculated_price'] = dataframe.apply(calculate_final_price(col_name))
+    
+    return dataframe
+
+
 def update_tags(tag_dict, csv_file, output_filename):   
     csv_file['tags'] = tag_dict['tags']
     pandas_to_csv(csv_file, outputfolder, output_filename)
