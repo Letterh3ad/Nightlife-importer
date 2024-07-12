@@ -51,12 +51,10 @@ def download_csv(url, output_folder, output_filename):
     array_mod_core(csv_path,output_filename)
 
 def array_mod_core(csv_path,output_filename):
-
-
     #Add dataframe column nammes here (Note: they will be formatted to lower case
     # as well as spaces replaced with "_"
     prod_name = str("unit_name")
-    prod_price = str("unit_price")
+    prod_price = str("price")
     prod_net_weight = str("unit_net_weight")
     prod_stock_level = str("stock")
     ##########
@@ -64,10 +62,11 @@ def array_mod_core(csv_path,output_filename):
     category_list = pd.read_csv(csv_path, sep=',')
     category_list=row_normalizer(category_list,"Family")
     replace_spaces_in_column_names(category_list)
+    print("DataFrame columns:", category_list.columns)
     print(category_list)
     unitnames = category_list[prod_name].values
     stock_normalizer(category_list,prod_stock_level)
-    #price_set(category_list,prod_price,prod_net_weight)
+    price_set(category_list,prod_price,prod_net_weight)
     tag_generator(unitnames,category_list,output_filename)
     
 def tag_generator(arr, csv_file, output_filename):
@@ -120,9 +119,10 @@ def replace_spaces_in_column_names(dataframe):
     return dataframe
 
 def price_set(dataframe, col_name, weight_col_name):
-    def calculate_final_price(row):
-        base_price = row[col_name]
-        weight = row[weight_col_name]
+    new_prices = []
+    for i in range(len(dataframe[col_name])):
+        base_price = dataframe[col_name][i]
+        weight = dataframe[weight_col_name][i]
         
         # Determine the delivery fee based on weight
         if weight < 0.1:
@@ -131,14 +131,12 @@ def price_set(dataframe, col_name, weight_col_name):
             delivery_fee = 2.99
         else:
             delivery_fee = 5.99
-        
+            
         # Calculate final price including delivery fee and 20% markup
-        final_price = (base_price + delivery_fee) * 1.20
-        return round(final_price, 2)
-    
-    # Apply the function to each row in the DataFrame and create a new column 'calculated_price'
-    dataframe['calculated_price'] = dataframe.apply(calculate_final_price(col_name))
-    
+        final_price = round((base_price + delivery_fee) * 1.20,2)
+        new_prices.append(final_price)
+        
+    dataframe['unit_rrp'] = new_prices        
     return dataframe
 
 
