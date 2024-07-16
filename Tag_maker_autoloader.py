@@ -63,7 +63,7 @@ def download_csv(url, output_folder, output_filename):
 def array_mod_core(csv_path):
     prod_name = "unit_name"
     prod_price = "price"
-    prod_net_weight = "unit_net_weight"
+    prod_net_weight = "package_weight_(shipping)"
     prod_stock_level = "stock"
     rrp = "unit_rrp"
     
@@ -72,7 +72,7 @@ def array_mod_core(csv_path):
     replace_spaces_in_column_names(category_list)
     stock_normalizer(category_list, prod_stock_level)
     category_list['unit_price'] = category_list['unit_price'].astype(int)
-    category_list = price_set(category_list, prod_price, prod_net_weight, rrp)
+    price_set(category_list,prod_price,prod_net_weight)
     
     unitnames = category_list[prod_name].values
     return tag_generator(unitnames, category_list)
@@ -113,23 +113,27 @@ def replace_spaces_in_column_names(dataframe):
     dataframe.rename(columns=new_column_names, inplace=True)
     return dataframe
 
-def price_set(dataframe, col_name, weight_col_name, final_price_location):
-    def calculate_final_price(base_price, item_weight):
-        if item_weight < 0.1:
+def price_set(dataframe, col_name, weight_col_name):
+    new_prices = []
+    for i in range(len(dataframe[col_name])):
+        base_price = dataframe[col_name][i]
+        weight = dataframe[weight_col_name][i]
+        
+        # Determine the delivery fee based on weight
+        if weight < 0.1:
             delivery_fee = 2.79
-        elif item_weight < 3:
+        elif weight < 3:
             delivery_fee = 2.99
         else:
             delivery_fee = 5.99
-        final_price = (base_price + delivery_fee) * 1.20
-        return round(final_price, 2)
-    
-    temp = [
-        calculate_final_price(dataframe[weight_col_name][i], dataframe[col_name][i])
-        for i in range(len(dataframe))
-    ]
-    dataframe[final_price_location] = temp
+            
+        # Calculate final price including delivery fee and 20% markup
+        final_price = round((base_price + delivery_fee) * 1.20,2)
+        new_prices.append(final_price)
+        
+    dataframe['unit_rrp'] = new_prices        
     return dataframe
+
 
 def update_tags(tag_dict, csv_file):
     csv_file['tags'] = tag_dict['tags']
