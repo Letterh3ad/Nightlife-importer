@@ -73,7 +73,9 @@ def array_mod_core(csv_path):
     stock_normalizer(category_list, prod_stock_level)
     category_list['unit_price'] = category_list['unit_price'].astype(int)
     price_set(category_list,prod_price,prod_net_weight)
-    
+    category_list[['prod_name_raw', 'variation']] = category_list[prod_name].apply(
+    lambda x: pd.Series(clean_product_name_and_extract_variation(x))
+)
     unitnames = category_list[prod_name].values
     return tag_generator(unitnames, category_list)
 
@@ -119,7 +121,6 @@ def price_set(dataframe, col_name, weight_col_name):
         base_price = dataframe[col_name][i]
         weight = dataframe[weight_col_name][i]
         
-        # Determine the delivery fee based on weight
         if weight < 0.1:
             delivery_fee = 2.79
         elif weight < 3:
@@ -127,21 +128,61 @@ def price_set(dataframe, col_name, weight_col_name):
         else:
             delivery_fee = 5.99
             
-        # Calculate final price including delivery fee and 20% markup
         final_price = round((base_price + delivery_fee) * 1.20,2)
         new_prices.append(final_price)
         
     dataframe['unit_rrp'] = new_prices        
     return dataframe
 
+def clean_product_name_and_extract_variation(name):
+    pattern = re.compile(r'\s*(\d+Kg|\d+g|Large|Medium|Small)\s*', re.IGNORECASE)
+    variations = pattern.findall(name)
+    cleaned_name = re.sub(pattern, '', name)
+    cleaned_name = cleaned_name.strip()
+    cleaned_name = re.sub(r'\s*-\s*', ' - ', cleaned_name) 
+    variation_str = '|'.join(variations) 
+
+    return cleaned_name, variation_str
 
 def update_tags(tag_dict, csv_file):
     csv_file['tags'] = tag_dict['tags']
     return csv_file
 
+
+def prepare_for_import(df, product_col='unit_name'):
+    df[['prod_name_raw', 'variation']] = df[product_col].apply(
+        lambda x: pd.Series(clean_product_name_and_extract_variation(x))
+    )
+    df["child_product_code"] = df["product_code"].str.replace('P-', '-', regex=False)
+    rslt_df = df.sort_values(by = 'prod_name_raw').reset_index(drop=True)
+    return rslt_df
+
+def parent_row_creation(df, column):
+    new_rows = pd.DataFrame(columns=df.columns)
+    previous_value = None
+    counter = 0
+    
+    for i in range(len(df)):
+        current_value = df.iloc[i][column]
+        if current_value != previous_value:
+            if previous_value is not None:
+                # Create a new row to be inserted
+                new_row = df.loc[i - counter - 1].copy()
+                new_rows = pd.concat([new_rows, pd.DataFrame([new_row])], ignore_index=True)
+            previous_value = current_value
+            counter = 1
+        else:
+            counter += 1
+    
+    df = pd.concat([df, new_rows], ignore_index=True)
+    
+    return df
+
 def pandas_to_csv(dataframe, outputfolder, outputname):
     outputfile = os.path.join(outputfolder, outputname)
     dataframe.to_csv(outputfile, sep=',')
+
+
 
 pathcheck(outputfolder)
 pathcheck(import_folder)
@@ -158,6 +199,9 @@ for group, group_name in zip(groupings, groupings_names):
     
     if dataframes:
         concatenated_df = pd.concat(dataframes, ignore_index=True)
+        variable_df = prepare_for_import(concatenated_df, product_col='unit_name')
+        #result_df = parent_row_creation(variable_df, 'prod_name_raw')
+        df_no_duplicates = variable_df.drop_duplicates()
         group_output_name = f"{group_name}.csv"
-        pandas_to_csv(concatenated_df, outputfolder, group_output_name)
+        pandas_to_csv(df_no_duplicates, outputfolder, group_output_name)
         print(f"Saved concatenated CSV for group: {group_output_name}")
