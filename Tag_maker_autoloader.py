@@ -3,86 +3,91 @@ import os
 import re
 import requests
 
-
-basefile = (os.getcwd()+"\\").replace("\\","/")
-outputfolder = os.path.join(os.getcwd(), basefile+"categories_updated/")
-import_folder = basefile+"categories/"
-
-
-
-
-
-#category_list = pd.read_csv(category_file, sep=',')
-#unitnames = category_list["Unit Name"].values
-
+basefile = (os.getcwd() + "\\").replace("\\", "/")
+outputfolder = os.path.join(os.getcwd(), basefile + "categories_updated/")
+import_folder = basefile + "categories/"
 download_files_txt = "categories_list.txt"
-download_files_path = os.path.join(os.getcwd(), basefile+download_files_txt)
+download_files_path = os.path.join(os.getcwd(), basefile + download_files_txt)
+
+def pathcheck(path):
+    if not os.path.exists(path):
+        os.makedirs(path, exist_ok=True)
+        print(f"Directory created: {path}")
 
 def import_files(file_path):
-    print(file_path)
-    print(os.path.isfile(file_path))
+    groupings = []
+    groupings_names = []
     with open(file_path, 'r') as file:
+        current_group = None
+        current_group_name = None
         for line in file:
-            output_name, download_link = line.strip().split("=", 1)
-            output_name = output_name + ".csv"
-            download_csv(download_link, import_folder, output_name)
-        
+            line = line.strip()
+            if line.startswith("#") and line.endswith("["):
+                current_group = []
+                current_group_name = line[1:-1].strip()
+            elif line == "]":
+                if current_group:
+                    groupings.append(current_group)
+                    groupings_names.append(current_group_name)
+                current_group = None
+                current_group_name = None
+            else:
+                if current_group is not None:
+                    current_group.append(line)
+                else:
+                    groupings.append([line])
+                    group_name = line.split('=')[0].strip()
+                    groupings_names.append(group_name)
+    print(groupings)
+    print(groupings_names)
+    return groupings, groupings_names
 
 def download_csv(url, output_folder, output_filename):
-    # Ensure the output folder exists
     os.makedirs(output_folder, exist_ok=True)
-
-    # Full path to save the file
     output_file_path = os.path.join(output_folder, output_filename)
 
     try:
-        # Send a HTTP request to the URL
         response = requests.get(url)
-        response.raise_for_status()  # Check if the request was successful
+        response.raise_for_status()
 
-        # Write the content of the response to a file
         with open(output_file_path, 'wb') as file:
             file.write(response.content)
+        print(f"Downloaded file saved to {output_file_path}")
     except requests.exceptions.HTTPError as http_err:
         print(f"HTTP error occurred: {http_err}")
     except Exception as err:
         print(f"An error occurred: {err}")
-    csv_path = output_folder+output_filename
-    array_mod_core(csv_path,output_filename)
 
-def array_mod_core(csv_path,output_filename):
-    #Add dataframe column nammes here (Note: they will be formatted to lower case
-    # as well as spaces replaced with "_"
-    prod_name = str("unit_name")
-    prod_price = str("price")
-    prod_net_weight = str("unit_net_weight")
-    prod_stock_level = str("stock")
-    ##########
+    return array_mod_core(output_file_path)
+
+def array_mod_core(csv_path):
+    prod_name = "unit_name"
+    prod_price = "price"
+    prod_net_weight = "package_weight_(shipping)"
+    prod_stock_level = "stock"
+    rrp = "unit_rrp"
     
     category_list = pd.read_csv(csv_path, sep=',')
-    category_list=row_normalizer(category_list,"Family")
+    category_list = row_normalizer(category_list, "Family")
     replace_spaces_in_column_names(category_list)
-    print("DataFrame columns:", category_list.columns)
-    print(category_list)
-    unitnames = category_list[prod_name].values
-    stock_normalizer(category_list,prod_stock_level)
+    stock_normalizer(category_list, prod_stock_level)
+    category_list['unit_price'] = category_list['unit_price'].astype(int)
     price_set(category_list,prod_price,prod_net_weight)
-    tag_generator(unitnames,category_list,output_filename)
-    
-def tag_generator(arr, csv_file, output_filename):
+    category_list[['prod_name_raw', 'variation']] = category_list[prod_name].apply(
+    lambda x: pd.Series(clean_product_name_and_extract_variation(x))
+)
+    unitnames = category_list[prod_name].values
+    return tag_generator(unitnames, category_list)
+
+def tag_generator(arr, csv_file):
     arr = list(map(str.lower, arr))
-    results = {
-        'tags': []
-    }
+    results = {'tags': []}
     
     for item in arr:
         tags = []
-
-        # Extract weight
         weight_match = re.search(r'(\d+(?:kg|g))', item)
         if weight_match:
             tags.append(weight_match.group(1))
-            # Remove weight from the string to isolate the color(s)
             item = re.sub(r'\d+(?:kg|g)', '', item).strip()
 
         number_match = re.search(r'x(\d+)', item)
@@ -91,31 +96,23 @@ def tag_generator(arr, csv_file, output_filename):
             item = re.sub(r'x(\d+)', '', item).strip()
         
         colors = [color.strip() for color in item.split(' - ') if color.strip()]
-        
         tags.extend(colors)
-        
         tags_str = ', '.join(tags)
         
         results['tags'].append(tags_str)
     
-    print(results)    
-    update_tags(results, csv_file, output_filename)
+    return update_tags(results, csv_file)
             
-def row_normalizer(dataframe,col_name):
+def row_normalizer(dataframe, col_name):
     dataframe[col_name] = dataframe[col_name].str.lower()
     return dataframe
 
-def stock_normalizer(df,col_name):
+def stock_normalizer(df, col_name):
     df[col_name] = df[col_name].apply(lambda x: 'outofstock' if x == 'OutofStock' else 'instock')
 
-
 def replace_spaces_in_column_names(dataframe):
-    # Create a dictionary to map old column names to new column names
     new_column_names = {col: col.lower().replace(' ', '_') for col in dataframe.columns}    
-
-    # Rename the columns
     dataframe.rename(columns=new_column_names, inplace=True)
-    
     return dataframe
 
 def price_set(dataframe, col_name, weight_col_name):
@@ -124,7 +121,6 @@ def price_set(dataframe, col_name, weight_col_name):
         base_price = dataframe[col_name][i]
         weight = dataframe[weight_col_name][i]
         
-        # Determine the delivery fee based on weight
         if weight < 0.1:
             delivery_fee = 2.79
         elif weight < 3:
@@ -132,28 +128,80 @@ def price_set(dataframe, col_name, weight_col_name):
         else:
             delivery_fee = 5.99
             
-        # Calculate final price including delivery fee and 20% markup
         final_price = round((base_price + delivery_fee) * 1.20,2)
         new_prices.append(final_price)
         
     dataframe['unit_rrp'] = new_prices        
     return dataframe
 
+def clean_product_name_and_extract_variation(name):
+    pattern = re.compile(r'\s*(\d+Kg|\d+g|Large|Medium|Small)\s*', re.IGNORECASE)
+    variations = pattern.findall(name)
+    cleaned_name = re.sub(pattern, '', name)
+    cleaned_name = cleaned_name.strip()
+    cleaned_name = re.sub(r'\s*-\s*', ' - ', cleaned_name) 
+    variation_str = '|'.join(variations) 
 
-def update_tags(tag_dict, csv_file, output_filename):   
+    return cleaned_name, variation_str
+
+def update_tags(tag_dict, csv_file):
     csv_file['tags'] = tag_dict['tags']
-    pandas_to_csv(csv_file, outputfolder, output_filename)
+    return csv_file
 
-def pathcheck(path):
-    if not os.path.exists(path):
-        os.makedirs(path, exist_ok=True)
-        print("Dir created")
 
-def pandas_to_csv(dataframe,outputfolder,outputname):
+def prepare_for_import(df, product_col='unit_name'):
+    df[['prod_name_raw', 'variation']] = df[product_col].apply(
+        lambda x: pd.Series(clean_product_name_and_extract_variation(x))
+    )
+    df["child_product_code"] = df["product_code"].str.replace('P-', '-', regex=False)
+    rslt_df = df.sort_values(by = 'prod_name_raw').reset_index(drop=True)
+    return rslt_df
+
+def parent_row_creation(df, column):
+    new_rows = pd.DataFrame(columns=df.columns)
+    previous_value = None
+    counter = 0
+    
+    for i in range(len(df)):
+        current_value = df.iloc[i][column]
+        if current_value != previous_value:
+            if previous_value is not None:
+                # Create a new row to be inserted
+                new_row = df.loc[i - counter - 1].copy()
+                new_rows = pd.concat([new_rows, pd.DataFrame([new_row])], ignore_index=True)
+            previous_value = current_value
+            counter = 1
+        else:
+            counter += 1
+    
+    df = pd.concat([df, new_rows], ignore_index=True)
+    
+    return df
+
+def pandas_to_csv(dataframe, outputfolder, outputname):
     outputfile = os.path.join(outputfolder, outputname)
     dataframe.to_csv(outputfile, sep=',')
 
+
+
 pathcheck(outputfolder)
 pathcheck(import_folder)
-import_files(download_files_path)
+groupings, groupings_names = import_files(download_files_path)
 
+for group, group_name in zip(groupings, groupings_names):
+    dataframes = []
+    for item in group:
+        output_name, download_link = item.strip().split("=", 1)
+        output_name = output_name + ".csv"
+        csv_file = download_csv(download_link, import_folder, output_name)
+        dataframes.append(csv_file)
+        print(f"Downloaded and read CSV: {output_name}")
+    
+    if dataframes:
+        concatenated_df = pd.concat(dataframes, ignore_index=True)
+        variable_df = prepare_for_import(concatenated_df, product_col='unit_name')
+        #result_df = parent_row_creation(variable_df, 'prod_name_raw')
+        df_no_duplicates = variable_df.drop_duplicates()
+        group_output_name = f"{group_name}.csv"
+        pandas_to_csv(df_no_duplicates, outputfolder, group_output_name)
+        print(f"Saved concatenated CSV for group: {group_output_name}")
