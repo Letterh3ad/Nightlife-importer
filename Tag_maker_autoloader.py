@@ -154,29 +154,42 @@ def prepare_for_import(df, product_col='unit_name'):
         lambda x: pd.Series(clean_product_name_and_extract_variation(x))
     )
     df["child_product_code"] = df["product_code"].str.replace('P-', '-', regex=False)
-    rslt_df = df.sort_values(by = 'prod_name_raw').reset_index(drop=True)
+    rslt_df = df.sort_values(by = 'child_product_code').reset_index(drop=True)
     return rslt_df
 
-def parent_row_creation(df, column):
-    new_rows = pd.DataFrame(columns=df.columns)
-    previous_value = None
-    counter = 0
-    
-    for i in range(len(df)):
-        current_value = df.iloc[i][column]
-        if current_value != previous_value:
-            if previous_value is not None:
-                # Create a new row to be inserted
-                new_row = df.loc[i - counter - 1].copy()
-                new_rows = pd.concat([new_rows, pd.DataFrame([new_row])], ignore_index=True)
-            previous_value = current_value
-            counter = 1
-        else:
-            counter += 1
-    
-    df = pd.concat([df, new_rows], ignore_index=True)
-    
-    return df
+def create_parent_rows(df):
+    # Group by child_product_code and collect necessary information
+    grouped = df.groupby('child_product_code').agg({
+        'prod_name_raw': 'first',
+        'variation': lambda x: '|'.join(x),
+        'webpage_description_(html)': 'first',
+        'webpage_description_(plain_text)': 'first'
+    }).reset_index()
+
+    # Create new rows for parent products
+    new_rows = []
+
+    for code in grouped['child_product_code'].unique():
+        parent_row = {
+            'child_product_code': code,
+            'prod_name_raw': grouped[grouped['child_product_code'] == code]['prod_name_raw'].values[0],
+            #'variation': grouped[grouped['child_product_code'] == code]['variation'].values[0],
+            'webpage_description_(html)': grouped[grouped['child_product_code'] == code]['webpage_description_(html)'].values[0],
+            'webpage_description_(plain_text)': grouped[grouped['child_product_code'] == code]['webpage_description_(plain_text)'].values[0]
+        }
+        new_rows.append(parent_row)
+
+    # Convert new rows to DataFrame
+    new_rows_df = pd.DataFrame(new_rows)
+
+    # Concatenate new rows with original DataFrame
+    result_df = pd.concat([new_rows_df, df], ignore_index=True)
+
+    # Sort by child_product_code and ensure parent rows are at the top
+    result_df['is_parent'] = result_df.apply(lambda row: row['child_product_code'] in new_rows_df['child_product_code'].values, axis=1)
+    result_df = result_df.sort_values(by=['child_product_code', 'is_parent'], ascending=[True, False]).drop(columns='is_parent').reset_index(drop=True)
+
+    return result_df
 
 def pandas_to_csv(dataframe, outputfolder, outputname):
     outputfile = os.path.join(outputfolder, outputname)
@@ -200,8 +213,8 @@ for group, group_name in zip(groupings, groupings_names):
     if dataframes:
         concatenated_df = pd.concat(dataframes, ignore_index=True)
         variable_df = prepare_for_import(concatenated_df, product_col='unit_name')
-        #result_df = parent_row_creation(variable_df, 'prod_name_raw')
-        df_no_duplicates = variable_df.drop_duplicates()
+        result_df = create_parent_rows(variable_df)
+        df_no_duplicates = result_df.drop_duplicates()
         group_output_name = f"{group_name}.csv"
         pandas_to_csv(df_no_duplicates, outputfolder, group_output_name)
         print(f"Saved concatenated CSV for group: {group_output_name}")
