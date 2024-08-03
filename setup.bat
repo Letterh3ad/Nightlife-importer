@@ -4,12 +4,12 @@ setlocal enabledelayedexpansion
 REM Define the directory and file names
 set "EXE_DIR=exe_files"
 set "SCRIPT_FILE=tag_maker_autoloader.py"
-set "GITHUB_URL=https://github.com/Letterh3ad/Nightlife-importer/raw/main/Tag_maker_autoloader.py"
+set "GITHUB_URL=https://raw.githubusercontent.com/Letterh3ad/Nightlife-importer/main/Tag_maker_autoloader.py?token=GHSAT0AAAAAACVOYW3FYLAXVLRWOJ7IK7V2ZVNW7QQ"
 
 REM Define directories to be created
 set "CATEGORIES_DIR=categories"
 set "CATEGORIES_UPDATED_DIR=categories_updated"
-set "CATEGORY_LIST_FILE=category_list.txt"
+set "CATEGORY_LIST_FILE=categories_list.txt"
 
 REM Download the Tag_maker_autoloader.py file from GitHub
 echo Downloading %SCRIPT_FILE% from %GITHUB_URL%
