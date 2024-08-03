@@ -149,47 +149,84 @@ def update_tags(tag_dict, csv_file):
     return csv_file
 
 
+
 def prepare_for_import(df, product_col='unit_name'):
+    # Extract and clean data from the specified column
     df[['prod_name_raw', 'variation']] = df[product_col].apply(
         lambda x: pd.Series(clean_product_name_and_extract_variation(x))
     )
+    
+    # Replace prefixes 'P-', 'S-', 'M-', 'L-' in 'product_code' with '-'
     df["child_product_code"] = df["product_code"].str.replace('P-', '-', regex=False)
-    rslt_df = df.sort_values(by = 'child_product_code').reset_index(drop=True)
+    df["child_product_code"] = df["child_product_code"].str.replace('S-', '-', regex=False)
+    df["child_product_code"] = df["child_product_code"].str.replace('M-', '-', regex=False)
+    df["child_product_code"] = df["child_product_code"].str.replace('L-', '-', regex=False)
+    
+    # Sort by 'child_product_code' and reset index
+    rslt_df = df.sort_values(by='child_product_code').reset_index(drop=True)
+    
     return rslt_df
 
+
 def create_parent_rows(df):
-    # Group by child_product_code and collect necessary information
+    # Group by child_product_code and aggregate information
     grouped = df.groupby('child_product_code').agg({
         'prod_name_raw': 'first',
         'variation': lambda x: '|'.join(x),
         'webpage_description_(html)': 'first',
-        'webpage_description_(plain_text)': 'first'
+        'webpage_description_(plain_text)': 'first',
+        'product_code': 'first',
+        '1st_image': 'first'  # Assuming '1st_image' contains the image URL or identifier
     }).reset_index()
 
     # Create new rows for parent products
     new_rows = []
+    parent_code_map = {}
+    parent_suffix_counter = {}
 
-    for code in grouped['child_product_code'].unique():
+    for idx, row in grouped.iterrows():
+        base_code = row['product_code']
+        
+        # Generate a unique suffix for each parent product code
+        if base_code not in parent_suffix_counter:
+            parent_suffix_counter[base_code] = 1
+        else:
+            parent_suffix_counter[base_code] += 1
+        
+        parent_suffix = parent_suffix_counter[base_code]
+        parent_code = f"{base_code}-{parent_suffix}"
+        
+        # Map the base code to the generated parent product code
+        parent_code_map[base_code] = parent_code
+        
+        # Create parent row with the first child's image
         parent_row = {
-            'child_product_code': code,
-            'prod_name_raw': grouped[grouped['child_product_code'] == code]['prod_name_raw'].values[0],
-            #'variation': grouped[grouped['child_product_code'] == code]['variation'].values[0],
-            'webpage_description_(html)': grouped[grouped['child_product_code'] == code]['webpage_description_(html)'].values[0],
-            'webpage_description_(plain_text)': grouped[grouped['child_product_code'] == code]['webpage_description_(plain_text)'].values[0]
+            'child_product_code': '',  # Parent rows do not have a child_product_code
+            'prod_name_raw': row['prod_name_raw'],
+            'variation': row['variation'],
+            'webpage_description_(html)': row['webpage_description_(html)'],
+            'webpage_description_(plain_text)': row['webpage_description_(plain_text)'],
+            'product_code': parent_code,
+            '1st_image': row['1st_image']  # Assign the image from the first child
         }
         new_rows.append(parent_row)
+
+        # Update child products to use the new parent product code
+        df.loc[df['child_product_code'] == row['child_product_code'], 'child_product_code'] = parent_code
 
     # Convert new rows to DataFrame
     new_rows_df = pd.DataFrame(new_rows)
 
-    # Concatenate new rows with original DataFrame
+    # Concatenate new rows with updated original DataFrame
     result_df = pd.concat([new_rows_df, df], ignore_index=True)
 
     # Sort by child_product_code and ensure parent rows are at the top
-    result_df['is_parent'] = result_df.apply(lambda row: row['child_product_code'] in new_rows_df['child_product_code'].values, axis=1)
+    result_df['is_parent'] = result_df.apply(lambda row: row['child_product_code'] in new_rows_df['product_code'].values, axis=1)
     result_df = result_df.sort_values(by=['child_product_code', 'is_parent'], ascending=[True, False]).drop(columns='is_parent').reset_index(drop=True)
 
     return result_df
+
+
 
 def pandas_to_csv(dataframe, outputfolder, outputname):
     outputfile = os.path.join(outputfolder, outputname)
