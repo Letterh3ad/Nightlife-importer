@@ -8,7 +8,7 @@ set "SCRIPT_FILE=tag_maker_autoloader.py"
 REM Define directories and file to be created
 set "CATEGORIES_DIR=categories"
 set "CATEGORIES_UPDATED_DIR=categories_updated"
-set "CATEGORY_LIST_FILE=category_list.txt"
+set "CATEGORY_LIST_FILE=categories_list.txt"
 
 REM Check if tag_maker_autoloader.py exists
 if not exist "%SCRIPT_FILE%" (
