@@ -2,7 +2,6 @@
 tea_1kg=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=34129
 tea_50g=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=34132
 ]
-home_fresh_spray=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=37707
 #african_tumble[
 african_tumble_small=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=36868
 african_tumble_medium=https://www.aw-dropship.com/ar_web_catalog_data_feed.php?output=CSV&scope=category&scope_key=36847
